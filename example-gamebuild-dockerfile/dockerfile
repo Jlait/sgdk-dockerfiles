@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+ARG SGDK_VERSION=v2.11
+
+# ------------------------------------------------------------------------------
+# Stage 1: Toolchain Base
+# Uses the community-standard SGDK Docker image (m68k-elf-gcc, Java for rescomp,
+# and compiled SGDK libraries).
+# ------------------------------------------------------------------------------
+FROM ghcr.io/jlait/arm64-sgdk-image:${SGDK_VERSION} AS toolchain
+
+WORKDIR /m68k
+ENTRYPOINT ["make", "-f", "/sgdk/makefile.gen", "-j1"]
+CMD ["release"]
+
+# ------------------------------------------------------------------------------
+# Stage 2: Builder
+# Copies the project sources and compiles the ROM inside the container.
+# ------------------------------------------------------------------------------
+FROM toolchain AS builder
+
+# Copy project files into container
+COPY --chown=m68k:m68k . /m68k/
+
+USER m68k
+
+# Build type: 'release' (default) or 'debug'
+ARG BUILD_TYPE=release
+RUN make -f /sgdk/makefile.gen ${BUILD_TYPE}
+
+# ------------------------------------------------------------------------------
+# Stage 3: Artifact Export
+# Scratch stage to export compiled binaries (out/rom.bin, out/rom.out, etc.)
+# directly to the host machine without requiring volume mounts.
+#
+# Usage:
+#   docker build --output out .
+#   (or: docker build -o out .)
+# ------------------------------------------------------------------------------
+FROM scratch AS export
+COPY --from=builder /m68k/out/ /
