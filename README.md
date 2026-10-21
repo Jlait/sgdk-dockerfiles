@@ -1,1 +1,1 @@
-# arm64-sgdk-image
+# arm64/amd64-sgdk-image
